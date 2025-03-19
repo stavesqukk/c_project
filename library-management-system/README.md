@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Library Management System
 
 ## Overview
@@ -81,6 +80,3 @@ library-management-system
 
 ## Contributing
 Contributions are welcome! Please submit a pull request or open an issue for any suggestions or improvements.
-=======
-# C_PROJECT_FINAL
->>>>>>> e0d97dcf39cc5acefb9e1f6353e89aa1d4eedb99
