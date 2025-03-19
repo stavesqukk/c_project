@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+#include <conio.h> // For getch()
 
 // Structure for Book
 typedef struct {
@@ -8,35 +10,34 @@ typedef struct {
     char title[100];
     char author[100];
     int is_borrowed; // 0 = available, 1 = borrowed
-    int reserved_by; // ID of the user who reserved the book
 } Book;
 
-// Structure for User
-typedef struct {
-    int id;
-    char name[100];
-    char role[20]; // "student" or "faculty"
-} User;
-
-// Global Arrays for Books and Users
+// Global Variables
 Book books[100];
-User users[100];
 int book_count = 0;
-int user_count = 0;
+char current_user[50];
 
 // Function Prototypes
+void load_books();
+void save_books();
 void add_book();
 void view_books();
-void add_user();
-void view_users();
-void borrow_book();
+void edit_book();
+void delete_book();
+void sort_books();
+void search_books();
+void issue_book();
 void return_book();
-void sort_books_by_title();
-void filter_books_by_availability();
-void save_data();
-void load_data();
-void view_borrowed_books();
-void delete_recent_book();
+void login_or_signup();
+void login();
+void signup();
+int validate_user(const char *username, const char *password);
+void save_user(const char *username, const char *password, const char *email);
+int find_book_by_id(int id);
+void to_lowercase(char *str);
+void get_hidden_password(char *password);
+int validate_username(const char *username);
+void forgot_password();
 
 // Main Menu
 void menu() {
@@ -49,15 +50,13 @@ void menu() {
         printf("|----|--------------------------------|\n");
         printf("| 1  | Add Book                       |\n");
         printf("| 2  | View Books                     |\n");
-        printf("| 3  | Add User                       |\n");
-        printf("| 4  | View Users                     |\n");
-        printf("| 5  | Borrow Book                    |\n");
-        printf("| 6  | Return Book                    |\n");
-        printf("| 7  | Sort Books by Title            |\n");
-        printf("| 8  | Filter Books by Availability   |\n");
-        printf("| 9  | View Borrowed Books            |\n");
-        printf("| 10 | Save and Exit                  |\n");
-        printf("| 11 | Delete Recently Added Book     |\n");
+        printf("| 3  | Edit Book Details              |\n");
+        printf("| 4  | Delete Book                    |\n");
+        printf("| 5  | Sort Books                     |\n");
+        printf("| 6  | Search Books                   |\n");
+        printf("| 7  | Issue Book                     |\n");
+        printf("| 8  | Return Book                    |\n");
+        printf("| 9  | Save and Exit                  |\n");
         printf("=========================================\n");
         printf("Enter your choice: ");
         scanf("%d", &choice);
@@ -65,29 +64,47 @@ void menu() {
         switch (choice) {
             case 1: add_book(); break;
             case 2: view_books(); break;
-            case 3: add_user(); break;
-            case 4: view_users(); break;
-            case 5: borrow_book(); break;
-            case 6: return_book(); break;
-            case 7: sort_books_by_title(); break;
-            case 8: filter_books_by_availability(); break;
-            case 9: view_borrowed_books(); break;
-            case 10:
-                printf("Are you sure you want to save and exit? (y/n): ");
-                char confirm;
-                scanf(" %c", &confirm);
-                if (confirm == 'y' || confirm == 'Y') {
-                    save_data();
-                    printf("Data saved. Exiting...\n");
-                    exit(0);
-                } else {
-                    printf("Returning to menu...\n");
-                }
-                break;
-            case 11: delete_recent_book(); break;
-            default: printf("Invalid choice. Try again.\n");
+            case 3: edit_book(); break;
+            case 4: delete_book(); break;
+            case 5: sort_books(); break;
+            case 6: search_books(); break;
+            case 7: issue_book(); break;
+            case 8: return_book(); break;
+            case 9:
+                save_books();
+                printf("Data saved. Exiting...\n");
+                exit(0);
+            default:
+                printf("Invalid choice. Try again.\n");
         }
     } while (1);
+}
+
+// Load Books from File
+void load_books() {
+    FILE *file = fopen("books.txt", "r");
+    if (!file) {
+        printf("No previous data found. Starting fresh.\n");
+        return;
+    }
+    while (fscanf(file, "%d\n%[^\n]\n%[^\n]\n%d\n", &books[book_count].id, books[book_count].title, books[book_count].author, &books[book_count].is_borrowed) == 4) {
+        book_count++;
+    }
+    fclose(file);
+}
+
+// Save Books to File
+void save_books() {
+    FILE *file = fopen("books.txt", "w");
+    if (!file) {
+        perror("Error saving data");
+        return;
+    }
+    for (int i = 0; i < book_count; i++) {
+        fprintf(file, "%d\n%s\n%s\n%d\n", books[i].id, books[i].title, books[i].author, books[i].is_borrowed);
+    }
+    fclose(file);
+    printf("Data saved successfully!\n");
 }
 
 // Add a Book
@@ -95,13 +112,20 @@ void add_book() {
     printf("\n=========================================\n");
     printf("             ADD A NEW BOOK              \n");
     printf("=========================================\n");
+    int id;
     printf("Enter Book ID: ");
-    scanf("%d", &books[book_count].id);
+    scanf("%d", &id);
 
-    // Clear the input buffer
-    while (getchar() != '\n');
+    // Check for duplicate ID
+    if (find_book_by_id(id) != -1) {
+        printf("Error: A book with this ID already exists.\n");
+        return;
+    }
+
+    books[book_count].id = id;
 
     printf("Enter Book Title: ");
+    getchar(); // Clear input buffer
     fgets(books[book_count].title, 100, stdin);
     books[book_count].title[strcspn(books[book_count].title, "\n")] = '\0'; // Remove newline
 
@@ -110,7 +134,6 @@ void add_book() {
     books[book_count].author[strcspn(books[book_count].author, "\n")] = '\0'; // Remove newline
 
     books[book_count].is_borrowed = 0; // Mark as available
-    books[book_count].reserved_by = 0; // No reservation
     book_count++;
     printf("Book added successfully!\n");
 }
@@ -131,256 +154,366 @@ void view_books() {
     printf("+----------+------------------------------+----------------------+------------+\n");
 }
 
-// Add a User
-void add_user() {
-    printf("\n=========================================\n");
-    printf("             ADD A NEW USER              \n");
-    printf("=========================================\n");
-    printf("Enter User ID: ");
-    scanf("%d", &users[user_count].id);
+// Edit Book Details
+void edit_book() {
+    int id;
+    printf("Enter the ID of the book to edit: ");
+    scanf("%d", &id);
 
-    // Clear the input buffer
-    while (getchar() != '\n');
-
-    printf("Enter User Name: ");
-    fgets(users[user_count].name, 100, stdin);
-    users[user_count].name[strcspn(users[user_count].name, "\n")] = '\0'; // Remove newline
-
-    do {
-        printf("Enter User Role (student/faculty): ");
-        scanf("%s", users[user_count].role);
-        if (strcmp(users[user_count].role, "student") != 0 && strcmp(users[user_count].role, "faculty") != 0) {
-            printf("Invalid role. Please enter 'student' or 'faculty'.\n");
-        } else {
-            break;
-        }
-    } while (1);
-
-    user_count++;
-    printf("User added successfully!\n");
-}
-
-// View All Users
-void view_users() {
-    printf("\n=========================================\n");
-    printf("         USER MANAGEMENT SYSTEM          \n");
-    printf("=========================================\n");
-    printf("+----------+----------------------+------------+\n");
-    printf("| ID       | Name                 | Role       |\n");
-    printf("+----------+----------------------+------------+\n");
-    for (int i = 0; i < user_count; i++) {
-        printf("| %-8d | %-20s | %-10s |\n",
-               users[i].id, users[i].name, users[i].role);
+    int index = find_book_by_id(id);
+    if (index == -1) {
+        printf("Error: Book not found.\n");
+        return;
     }
-    printf("+----------+----------------------+------------+\n");
-}
 
-// Borrow a Book
-void borrow_book() {
-    int book_id;
-    printf("\n=========================================\n");
-    printf("             BORROW A BOOK               \n");
-    printf("=========================================\n");
-    printf("Enter Book ID to Borrow: ");
-    scanf("%d", &book_id);
-    for (int i = 0; i < book_count; i++) {
-        if (books[i].id == book_id) {
-            if (books[i].is_borrowed) {
-                printf("Book is already borrowed.\n");
-                return;
-            }
-            books[i].is_borrowed = 1;
-            printf("Book borrowed successfully!\n");
-            return;
-        }
+    printf("Editing Book ID: %d\n", books[index].id);
+    printf("Enter new title (leave blank to keep current): ");
+    getchar(); // Clear input buffer
+    char new_title[100];
+    fgets(new_title, 100, stdin);
+    if (strcmp(new_title, "\n") != 0) {
+        new_title[strcspn(new_title, "\n")] = '\0'; // Remove newline
+        strcpy(books[index].title, new_title);
     }
-    printf("Book not found.\n");
-}
 
-// Return a Book
-void return_book() {
-    int book_id;
-    printf("\n=========================================\n");
-    printf("             RETURN A BOOK               \n");
-    printf("=========================================\n");
-    printf("Enter Book ID to Return: ");
-    scanf("%d", &book_id);
-    for (int i = 0; i < book_count; i++) {
-        if (books[i].id == book_id) {
-            if (!books[i].is_borrowed) {
-                printf("Book is already available.\n");
-                return;
-            }
-            books[i].is_borrowed = 0;
-            if (books[i].reserved_by != 0) {
-                printf("Book returned successfully! It is now reserved for User ID: %d.\n", books[i].reserved_by);
-                books[i].reserved_by = 0; // Clear reservation after notifying
-            } else {
-                printf("Book returned successfully!\n");
-            }
-            return;
-        }
+    printf("Enter new author (leave blank to keep current): ");
+    char new_author[100];
+    fgets(new_author, 100, stdin);
+    if (strcmp(new_author, "\n") != 0) {
+        new_author[strcspn(new_author, "\n")] = '\0'; // Remove newline
+        strcpy(books[index].author, new_author);
     }
-    printf("Book not found.\n");
+
+    printf("Book details updated successfully!\n");
 }
 
-// Sort Books by Title
-void sort_books_by_title() {
+// Delete a Book
+void delete_book() {
+    int id;
+    printf("Enter the ID of the book to delete: ");
+    scanf("%d", &id);
+
+    int index = find_book_by_id(id);
+    if (index == -1) {
+        printf("Error: Book not found.\n");
+        return;
+    }
+
+    for (int i = index; i < book_count - 1; i++) {
+        books[i] = books[i + 1];
+    }
+    book_count--;
+    printf("Book deleted successfully!\n");
+}
+
+// Sort Books
+void sort_books() {
+    printf("Sort by:\n1. Title\n2. Author\n3. ID\nEnter choice: ");
+    int choice;
+    scanf("%d", &choice);
+
     for (int i = 0; i < book_count - 1; i++) {
         for (int j = i + 1; j < book_count; j++) {
-            if (strcmp(books[i].title, books[j].title) > 0) {
+            int compare = 0;
+            if (choice == 1) {
+                compare = strcmp(books[i].title, books[j].title);
+            } else if (choice == 2) {
+                compare = strcmp(books[i].author, books[j].author);
+            } else if (choice == 3) {
+                compare = books[i].id - books[j].id;
+            }
+            if (compare > 0) {
                 Book temp = books[i];
                 books[i] = books[j];
                 books[j] = temp;
             }
         }
     }
-    printf("Books sorted by title successfully!\n");
+    printf("Books sorted successfully!\n");
 }
 
-// Filter Books by Availability
-void filter_books_by_availability() {
-    printf("\n=========================================\n");
-    printf("         AVAILABLE BOOKS LIST            \n");
-    printf("=========================================\n");
-    printf("%-10s %-30s %-20s\n", "ID", "Title", "Author");
-    printf("=========================================\n");
-    for (int i = 0; i < book_count; i++) {
-        if (!books[i].is_borrowed) {
-            printf("%-10d %-30s %-20s\n",
-                   books[i].id, books[i].title, books[i].author);
-        }
-    }
-    printf("=========================================\n");
-}
+// Search Books
+void search_books() {
+    printf("Search by:\n1. Title\n2. Author\nEnter choice: ");
+    int choice;
+    scanf("%d", &choice);
 
-// View Borrowed Books
-void view_borrowed_books() {
-    printf("\n=========================================\n");
-    printf("         BORROWED BOOKS LIST             \n");
-    printf("=========================================\n");
+    char query[100];
+    printf("Enter search query: ");
+    getchar(); // Clear input buffer
+    fgets(query, 100, stdin);
+    query[strcspn(query, "\n")] = '\0'; // Remove newline
+    to_lowercase(query);
+
     printf("+----------+------------------------------+----------------------+------------+\n");
     printf("| ID       | Title                        | Author               | Status     |\n");
     printf("+----------+------------------------------+----------------------+------------+\n");
     for (int i = 0; i < book_count; i++) {
-        if (books[i].is_borrowed) {
-            printf("| %-8d | %-28s | %-20s |\n",
-                   books[i].id, books[i].title, books[i].author);
+        char field[100];
+        if (choice == 1) {
+            strcpy(field, books[i].title);
+        } else if (choice == 2) {
+            strcpy(field, books[i].author);
+        }
+        to_lowercase(field);
+        if (strstr(field, query)) {
+            printf("| %-8d | %-28s | %-20s | %-10s |\n",
+                   books[i].id, books[i].title, books[i].author,
+                   books[i].is_borrowed ? "Borrowed" : "Available");
         }
     }
     printf("+----------+------------------------------+----------------------+------------+\n");
 }
 
-// Save Data to File
-void save_data() {
-    FILE *file = fopen("library_data.txt", "w");
-    if (!file) {
-        perror("Error saving data");
+// Issue a Book
+void issue_book() {
+    int id;
+    printf("Enter the ID of the book to issue: ");
+    scanf("%d", &id);
+
+    int index = find_book_by_id(id);
+    if (index == -1) {
+        printf("Error: Book not found.\n");
         return;
     }
-    if (fprintf(file, "%d\n", book_count) < 0) {
-        perror("Error writing book count");
-        fclose(file);
+
+    if (books[index].is_borrowed) {
+        printf("Error: Book is already borrowed.\n");
         return;
     }
-    for (int i = 0; i < book_count; i++) {
-        if (fprintf(file, "%d\n%s\n%s\n%d\n%d\n",
-                    books[i].id, books[i].title, books[i].author,
-                    books[i].is_borrowed, books[i].reserved_by) < 0) {
-            perror("Error writing book data");
-            fclose(file);
-            return;
-        }
-    }
-    if (fprintf(file, "%d\n", user_count) < 0) {
-        perror("Error writing user count");
-        fclose(file);
-        return;
-    }
-    for (int i = 0; i < user_count; i++) {
-        if (fprintf(file, "%d\n%s\n%s\n",
-                    users[i].id, users[i].name, users[i].role) < 0) {
-            perror("Error writing user data");
-            fclose(file);
-            return;
-        }
-    }
-    fclose(file);
-    printf("Data saved successfully!\n");
+
+    books[index].is_borrowed = 1;
+    printf("Book issued successfully!\n");
 }
 
-// Load Data from File
-void load_data() {
-    FILE *file = fopen("library_data.txt", "r");
-    if (!file) {
-        printf("No previous data found. Starting fresh.\n");
+// Return a Book
+void return_book() {
+    int id;
+    printf("Enter the ID of the book to return: ");
+    scanf("%d", &id);
+
+    int index = find_book_by_id(id);
+    if (index == -1) {
+        printf("Error: Book not found.\n");
         return;
     }
-    if (fscanf(file, "%d", &book_count) != 1) {
-        printf("Error reading book count. Starting fresh.\n");
-        fclose(file);
+
+    if (!books[index].is_borrowed) {
+        printf("Error: Book is not currently borrowed.\n");
         return;
     }
+
+    books[index].is_borrowed = 0;
+    printf("Book returned successfully!\n");
+}
+
+// Find Book by ID
+int find_book_by_id(int id) {
     for (int i = 0; i < book_count; i++) {
-        if (fscanf(file, "%d\n", &books[i].id) != 1 ||
-            fgets(books[i].title, 100, file) == NULL ||
-            fgets(books[i].author, 100, file) == NULL ||
-            fscanf(file, "%d\n%d\n", &books[i].is_borrowed, &books[i].reserved_by) != 2) {
-            printf("Error reading book data. Starting fresh.\n");
-            fclose(file);
-            return;
+        if (books[i].id == id) {
+            return i;
         }
-        books[i].title[strcspn(books[i].title, "\n")] = '\0';
-        books[i].author[strcspn(books[i].author, "\n")] = '\0';
     }
-    if (fscanf(file, "%d", &user_count) != 1) {
-        printf("Error reading user count. Starting fresh.\n");
-        fclose(file);
-        return;
+    return -1;
+}
+
+// Convert String to Lowercase
+void to_lowercase(char *str) {
+    for (int i = 0; str[i]; i++) {
+        str[i] = tolower(str[i]);
     }
-    for (int i = 0; i < user_count; i++) {
-        if (fscanf(file, "%d\n", &users[i].id) != 1 ||
-            fgets(users[i].name, 100, file) == NULL ||
-            fscanf(file, "%s\n", users[i].role) != 1) {
-            printf("Error reading user data. Starting fresh.\n");
-            fclose(file);
-            return;
+}
+
+// User Login or Sign-Up
+void login_or_signup() {
+    int choice;
+    while (1) {
+        printf("\n=========================================\n");
+        printf("         LIBRARY MANAGEMENT SYSTEM       \n");
+        printf("=========================================\n");
+        printf("| 1 | Login                             |\n");
+        printf("| 2 | Sign Up                           |\n");
+        printf("=========================================\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1: login(); return;
+            case 2: signup(); return;
+            default:
+                printf("Invalid choice. Please try again.\n");
         }
-        users[i].name[strcspn(users[i].name, "\n")] = '\0';
     }
+}
+
+// Login Function
+void login() {
+    char username[50], password[50];
+    int attempts = 0;
+
+    while (1) {
+        printf("Enter username: ");
+        scanf("%s", username);
+
+        printf("Enter password: ");
+        get_hidden_password(password);
+
+        if (validate_user(username, password)) {
+            strcpy(current_user, username);
+            printf("\nLogin successful. Welcome, %s!\n", current_user);
+            break; // Exit the loop on successful login
+        } else {
+            attempts++;
+            printf("\nInvalid credentials. Please try again.\n");
+
+            // Offer "Forgot Password" option after invalid credentials
+            printf("Forgot Password? Enter '1' to recover your password or '2' to try again: ");
+            int choice;
+            scanf("%d", &choice);
+
+            if (choice == 1) {
+                forgot_password();
+                return; // Exit login after password recovery
+            }
+
+            // Optional: Limit the number of attempts
+            if (attempts >= 3) {
+                printf("Too many failed attempts. Exiting...\n");
+                exit(1);
+            }
+        }
+    }
+}
+
+// Sign-Up Function
+void signup() {
+    char username[50], password[50], email[100];
+
+    while (1) {
+        printf("Enter a new username: ");
+        scanf("%s", username);
+
+        // Check if the username is already taken
+        if (validate_username(username)) {
+            printf("Error: Username '%s' is already taken. Please try a different username.\n", username);
+        } else {
+            break; // Username is available
+        }
+    }
+
+    printf("Enter a new password: ");
+    get_hidden_password(password);
+
+    printf("Enter your email (for password recovery): ");
+    scanf("%s", email);
+
+    save_user(username, password, email);
+    printf("\nSign-up successful! You can now log in.\n");
+    login();
+}
+
+// Validate if Username is Already Taken
+int validate_username(const char *username) {
+    FILE *file = fopen("users.txt", "r");
+    if (!file) {
+        return 0; // File doesn't exist, so username is not taken
+    }
+
+    char stored_username[50], stored_password[50], stored_email[100];
+    while (fscanf(file, "%s %s %s", stored_username, stored_password, stored_email) == 3) {
+        if (strcmp(username, stored_username) == 0) {
+            fclose(file);
+            return 1; // Username is taken
+        }
+    }
+
+    fclose(file);
+    return 0; // Username is not taken
+}
+
+// Function to Get Hidden Password
+void get_hidden_password(char *password) {
+    int i = 0;
+    char ch;
+
+    while (1) {
+        ch = getch(); // Read a single character without echoing it
+        if (ch == '\r') { // Enter key pressed
+            password[i] = '\0';
+            printf("\n"); // Move to the next line
+            break;
+        } else if (ch == '\b') { // Backspace key pressed
+            if (i > 0) {
+                i--;
+                printf("\b \b"); // Erase the last character on the console
+            }
+        } else if (i < 49) { // Limit password length to 49 characters
+            password[i++] = ch;
+            printf("*"); // Print '*' for each character entered
+        }
+    }
+}
+
+// Validate User Credentials
+int validate_user(const char *username, const char *password) {
+    FILE *file = fopen("users.txt", "r");
+    if (!file) {
+        return 0;
+    }
+
+    char stored_username[50], stored_password[50];
+    while (fscanf(file, "%s %s", stored_username, stored_password) == 2) {
+        if (strcmp(username, stored_username) == 0 && strcmp(password, stored_password) == 0) {
+            fclose(file);
+            return 1; // User found
+        }
+    }
+
+    fclose(file);
+    return 0; // User not found
+}
+
+// Save New User Credentials
+void save_user(const char *username, const char *password, const char *email) {
+    FILE *file = fopen("users.txt", "a");
+    if (!file) {
+        perror("Error saving user data");
+        exit(1);
+    }
+
+    fprintf(file, "%s %s %s\n", username, password, email);
     fclose(file);
 }
 
-// Delete Recently Added Book
-void delete_recent_book() {
-    if (book_count == 0) {
-        printf("\nNo books available to delete.\n");
+// Forgot Password Function
+void forgot_password() {
+    char email[100], stored_email[100], stored_username[50], stored_password[50];
+    printf("Enter your registered email: ");
+    scanf("%s", email);
+
+    FILE *file = fopen("users.txt", "r");
+    if (!file) {
+        printf("No user data found. Please sign up first.\n");
         return;
     }
 
-    printf("\n=========================================\n");
-    printf("         DELETE RECENTLY ADDED BOOK       \n");
-    printf("=========================================\n");
-    printf("The following book will be deleted:\n");
-    printf("ID: %d, Title: %s, Author: %s\n",
-           books[book_count - 1].id, books[book_count - 1].title, books[book_count - 1].author);
-
-    // Ask for confirmation on the same line
-    printf("Are you sure you want to delete this book? (y/n): ");
-    char confirm;
-    scanf(" %c", &confirm);
-
-    if (confirm == 'y' || confirm == 'Y') {
-        book_count--; // Decrease the book count to remove the last book
-        printf("The book has been deleted successfully.\n");
-    } else {
-        printf("Deletion canceled. Returning to menu.\n");
+    while (fscanf(file, "%s %s %s", stored_username, stored_password, stored_email) == 3) {
+        if (strcmp(email, stored_email) == 0) {
+            printf("Your username: %s\n", stored_username);
+            printf("Your password: %s\n", stored_password);
+            fclose(file);
+            return;
+        }
     }
+
+    fclose(file);
+    printf("No account found with the provided email.\n");
 }
 
 // Main Function
 int main() {
-    load_data();
+    login_or_signup();
+    load_books();
     menu();
     return 0;
 }
