@@ -1,0 +1,41 @@
+ID,Title,Author,Status
+101,The Great Gatsby,F. Scott Fitzgerald,Borrowed
+102,To Kill a Mockingbird,Harper Lee,Borrowed
+103,1984,George Orwell,Available
+104,Pride and Prejudice,Jane Austen,Borrowed
+105,The Catcher in the Rye,J.D. Salinger,Available
+106,The Hobbit,J.R.R. Tolkien,Borrowed
+107,Fahrenheit 451,Ray Bradbury,Borrowed
+108,Moby Dick,Herman Melville,Available
+109,War and Peace,Leo Tolstoy,Borrowed
+110,The Odyssey,Homer,Available
+111,Crime and Punishment,Fyodor Dostoevsky,Borrowed
+112,The Brothers Karamazov,Fyodor Dostoevsky,Available
+113,Brave New World,Aldous Huxley,Borrowed
+114,The Iliad,Homer,Available
+115,The Divine Comedy,Dante Alighieri,Borrowed
+116,The Alchemist,Paulo Coelho,Available
+117,The Little Prince,Antoine de Saint-Exupéry,Borrowed
+118,The Road,Cormac McCarthy,Available
+119,The Book Thief,Markus Zusak,Borrowed
+120,The Kite Runner,Khaled Hosseini,Available
+121,The Shining,Stephen King,Borrowed
+122,The Da Vinci Code,Dan Brown,Available
+123,The Hunger Games,Suzanne Collins,Borrowed
+124,The Girl with the Dragon Tattoo,Stieg Larsson,Available
+125,The Lord of the Rings,J.R.R. Tolkien,Borrowed
+126,The Chronicles of Narnia,C.S. Lewis,Available
+127,The Hitchhiker's Guide to the Galaxy,Douglas Adams,Borrowed
+128,The Handmaid's Tale,Margaret Atwood,Available
+129,The Picture of Dorian Gray,Oscar Wilde,Borrowed
+130,The Secret Garden,Frances Hodgson Burnett,Available
+131,The Giver,Lois Lowry,Borrowed
+132,The Fault in Our Stars,John Green,Available
+133,The Martian,Andy Weir,Borrowed
+134,The Night Circus,Erin Morgenstern,Available
+135,The Name of the Wind,Patrick Rothfuss,Borrowed
+136,The Goldfinch,Donna Tartt,Available
+137,The Underground Railroad,Colson Whitehead,Borrowed
+138,The Silent Patient,Alex Michaelides,Available
+139,The Seven Husbands of Evelyn Hugo,Taylor Jenkins Reid,Borrowed
+140,The Midnight Library,Matt Haig,Available

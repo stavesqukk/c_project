@@ -1,2 +1,13 @@
 muskan123 @2023005#
 simone11 12345678
+shankar112 0718 081BEL076.shankar@pcampus.edu.np Admin
+john_doe John@123 john.doe@example.com
+alice_smith Alice@456 alice.smith@example.com
+bob_johnson Bob@789 bob.johnson@example.com
+emma_brown Emma@101 emma.brown@example.com
+michael_davis Michael@202 michael.davis@example.com
+sarah_wilson Sarah@303 sarah.wilson@example.com
+david_martinez David@404 david.martinez@example.com
+olivia_anderson Olivia@505 olivia.anderson@example.com
+james_taylor James@606 james.taylor@example.com
+sophia_thomas Sophia@707 sophia.thomas@example.com

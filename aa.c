@@ -3,6 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <conio.h> // For getch()
+#include <time.h>
 
 // Structure for Book
 typedef struct {
@@ -10,6 +11,8 @@ typedef struct {
     char title[100];
     char author[100];
     int is_borrowed; // 0 = available, 1 = borrowed
+    char borrower[50]; // Name of the borrower
+    char due_date[11]; // Format: YYYY-MM-DD
 } Book;
 
 // Global Variables
@@ -31,7 +34,7 @@ void return_book();
 void login_or_signup();
 void login();
 void signup();
-int validate_user(const char *username, const char *password);
+int validate_user(const char *username, const char *password, int role);
 void save_user(const char *username, const char *password, const char *email);
 int find_book_by_id(int id);
 void to_lowercase(char *str);
@@ -40,14 +43,37 @@ int validate_username(const char *username);
 void forgot_password();
 void generate_statistics();
 void user_menu();
+void export_data_to_file();
+void backup_data();
+void restore_data();
+int calculate_fine(const char *due_date);
+void save_user_with_role(const char *username, const char *password, const char *email, int role);
+void save_admin(const char *username, const char *password, const char *email);
+void preload_books();
+
+#define RESET "\033[0m"
+#define RED "\033[31m"
+#define GREEN "\033[32m"
+#define YELLOW "\033[33m"
+#define BLUE "\033[34m"
+
+// Print Colored Menu
+void print_colored_menu() {
+    printf(GREEN "=========================================\n" RESET);
+    printf(YELLOW "         LIBRARY MANAGEMENT SYSTEM       \n" RESET);
+    printf(GREEN "=========================================\n" RESET);
+    printf("| " BLUE "1" RESET " | Login                             |\n");
+    printf("| " BLUE "2" RESET " | Sign Up                           |\n");
+    printf(GREEN "=========================================\n" RESET);
+}
 
 // Main Menu
 void menu() {
     int choice;
     do {
-        printf("\n=========================================\n");
-        printf("         LIBRARY MANAGEMENT SYSTEM       \n");
-        printf("=========================================\n");
+        printf(GREEN "\n=========================================\n" RESET);
+        printf(YELLOW "         LIBRARY MANAGEMENT SYSTEM       \n" RESET);
+        printf(GREEN "=========================================\n" RESET);
         printf("| %-2s | %-30s |\n", "No", "Option");
         printf("|----|--------------------------------|\n");
         printf("| 1  | Add Book                       |\n");
@@ -58,8 +84,12 @@ void menu() {
         printf("| 6  | Search Books                   |\n");
         printf("| 7  | Issue Book                     |\n");
         printf("| 8  | Return Book                    |\n");
-        printf("| 9  | Save and Exit                  |\n");
-        printf("=========================================\n");
+        printf("| 9  | Generate Statistics            |\n");
+        printf("| 10 | Export Data to File            |\n");
+        printf("| 11 | Backup Data                    |\n");
+        printf("| 12 | Restore Data                   |\n");
+        printf("| 13 | Save and Exit                  |\n");
+        printf(GREEN "=========================================\n" RESET);
         printf("Enter your choice: ");
         scanf("%d", &choice);
 
@@ -72,40 +102,85 @@ void menu() {
             case 6: search_books(); break;
             case 7: issue_book(); break;
             case 8: return_book(); break;
-            case 9:
+            case 9: generate_statistics(); break;
+            case 10: export_data_to_file(); break;
+            case 11: backup_data(); break;
+            case 12: restore_data(); break;
+            case 13:
                 save_books();
-                printf("Data saved. Exiting...\n");
+                printf(GREEN "Data saved. Exiting...\n" RESET);
                 exit(0);
             default:
-                printf("Invalid choice. Try again.\n");
+                printf(RED "Invalid choice. Try again.\n" RESET);
         }
     } while (1);
 }
 
 // Load Books from File
 void load_books() {
-    FILE *file = fopen("books.dat", "rb");
+    FILE *file = fopen("books.txt", "r");
     if (!file) {
-        printf("No previous data found. Starting fresh.\n");
+        printf("No previous book data found. Starting fresh.\n");
         return;
     }
-    fread(&book_count, sizeof(int), 1, file); // Read the book count
-    fread(books, sizeof(Book), book_count, file); // Read the book array
+
+    book_count = 0;
+    while (!feof(file)) {
+        char line[256]; // Buffer to read each line
+        if (fgets(line, sizeof(line), file)) {
+            // Parse the line
+            int fields = sscanf(line, "%d,%99[^,],%99[^,],%d,%49[^,],%10[^\n]",
+                                &books[book_count].id,
+                                books[book_count].title,
+                                books[book_count].author,
+                                &books[book_count].is_borrowed,
+                                books[book_count].borrower,
+                                books[book_count].due_date);
+
+            // Handle cases with missing Borrower and Due Date
+            if (fields >= 4) { // At least ID, Title, Author, and Status must be present
+                if (fields < 5) {
+                    strcpy(books[book_count].borrower, "N/A");
+                }
+                if (fields < 6) {
+                    strcpy(books[book_count].due_date, "N/A");
+                }
+
+                // Debug print to verify loaded data
+                printf("DEBUG: Loaded book: ID=%d, Title=%s, Author=%s, Status=%d, Borrower=%s, Due Date=%s\n",
+                       books[book_count].id, books[book_count].title, books[book_count].author,
+                       books[book_count].is_borrowed, books[book_count].borrower, books[book_count].due_date);
+
+                book_count++;
+            } else {
+                printf("DEBUG: Skipping invalid line: %s", line);
+            }
+        }
+    }
+
     fclose(file);
-    printf("Books loaded successfully!\n");
+    printf("Books loaded successfully from books.txt! Total books: %d\n", book_count);
 }
 
 // Save Books to File
 void save_books() {
-    FILE *file = fopen("books.dat", "wb");
+    FILE *file = fopen("books.txt", "w");
     if (!file) {
-        perror("Error saving data");
+        perror("Error saving book data");
         return;
     }
-    fwrite(&book_count, sizeof(int), 1, file); // Write the book count
-    fwrite(books, sizeof(Book), book_count, file); // Write the book array
+
+    for (int i = 0; i < book_count; i++) {
+        fprintf(file, "%d,%s,%s,%d,%s\n",
+                books[i].id,
+                books[i].title,
+                books[i].author,
+                books[i].is_borrowed,
+                books[i].is_borrowed ? books[i].due_date : "");
+    }
+
     fclose(file);
-    printf("Data saved successfully!\n");
+    printf("Books saved successfully to books.txt!\n");
 }
 
 // Add a Book
@@ -125,12 +200,12 @@ void add_book() {
 
     books[book_count].id = id;
 
-    printf("Enter Book Title: ");
+    printf("Enter Book Title (max 99 characters): ");
     getchar(); // Clear input buffer
     fgets(books[book_count].title, 100, stdin);
     books[book_count].title[strcspn(books[book_count].title, "\n")] = '\0'; // Remove newline
 
-    printf("Enter Book Author: ");
+    printf("Enter Book Author (max 99 characters): ");
     fgets(books[book_count].author, 100, stdin);
     books[book_count].author[strcspn(books[book_count].author, "\n")] = '\0'; // Remove newline
 
@@ -141,18 +216,28 @@ void add_book() {
 
 // View All Books
 void view_books() {
+    if (book_count == 0) {
+        printf("No books available in the library.\n");
+        return;
+    }
+
     printf("\n=========================================\n");
     printf("         BOOK MANAGEMENT SYSTEM          \n");
     printf("=========================================\n");
-    printf("+----------+------------------------------+----------------------+------------+\n");
-    printf("| ID       | Title                        | Author               | Status     |\n");
-    printf("+----------+------------------------------+----------------------+------------+\n");
+    printf("+----------+------------------------------+----------------------+------------+-----------------+------------+\n");
+    printf("| ID       | Title                        | Author               | Status     | Borrower        | Due Date   |\n");
+    printf("+----------+------------------------------+----------------------+------------+-----------------+------------+\n");
     for (int i = 0; i < book_count; i++) {
-        printf("| %-8d | %-28s | %-20s | %-10s |\n",
-               books[i].id, books[i].title, books[i].author,
-               books[i].is_borrowed ? "Borrowed" : "Available");
+        printf("| %-8d | %-28s | %-20s | %-10s | %-15s | %-10s |\n",
+               books[i].id, 
+               books[i].title[0] ? books[i].title : "N/A", // Handle empty title
+               books[i].author[0] ? books[i].author : "N/A", // Handle empty author
+               books[i].is_borrowed ? "Borrowed" : "Available",
+               books[i].is_borrowed ? books[i].borrower : "N/A",
+               books[i].is_borrowed ? books[i].due_date : "N/A");
     }
-    printf("+----------+------------------------------+----------------------+------------+\n");
+    printf("+----------+------------------------------+----------------------+------------+-----------------+------------+\n");
+    printf("Total books to display: %d\n", book_count);
 }
 
 // Edit Book Details
@@ -245,27 +330,47 @@ void search_books() {
     printf("Enter search query: ");
     getchar(); // Clear input buffer
     fgets(query, 100, stdin);
-    query[strcspn(query, "\n")] = '\0'; // Remove newline
+    query[strcspn(query, "\n")] = '\0'; // Remove newline character
+
+    // Convert the query to lowercase for case-insensitive search
     to_lowercase(query);
+
+    int found = 0; // Flag to track if any book matches the query
 
     printf("+----------+------------------------------+----------------------+------------+\n");
     printf("| ID       | Title                        | Author               | Status     |\n");
     printf("+----------+------------------------------+----------------------+------------+\n");
+
     for (int i = 0; i < book_count; i++) {
         char field[100];
+
+        // Search by Title or Author based on user choice
         if (choice == 1) {
             strcpy(field, books[i].title);
         } else if (choice == 2) {
             strcpy(field, books[i].author);
+        } else {
+            printf("Invalid choice. Please try again.\n");
+            return;
         }
+
+        // Convert the field to lowercase for case-insensitive comparison
         to_lowercase(field);
+
+        // Check if the query is a substring of the field
         if (strstr(field, query)) {
             printf("| %-8d | %-28s | %-20s | %-10s |\n",
                    books[i].id, books[i].title, books[i].author,
                    books[i].is_borrowed ? "Borrowed" : "Available");
+            found = 1; // Mark that a match was found
         }
     }
+
     printf("+----------+------------------------------+----------------------+------------+\n");
+
+    if (!found) {
+        printf("No books found matching the query.\n");
+    }
 }
 
 // Issue a Book
@@ -285,8 +390,11 @@ void issue_book() {
         return;
     }
 
+    printf("Enter due date (YYYY-MM-DD): ");
+    scanf("%s", books[index].due_date);
+
     books[index].is_borrowed = 1;
-    printf("Book issued successfully!\n");
+    printf("Book issued successfully! Due date: %s\n", books[index].due_date);
 }
 
 // Return a Book
@@ -295,18 +403,31 @@ void return_book() {
     printf("Enter the ID of the book to return: ");
     scanf("%d", &id);
 
+    // Find the book by ID
     int index = find_book_by_id(id);
     if (index == -1) {
-        printf("Error: Book not found.\n");
+        printf("Error: Book with ID %d not found.\n", id);
         return;
     }
 
+    // Check if the book is borrowed
     if (!books[index].is_borrowed) {
-        printf("Error: Book is not currently borrowed.\n");
+        printf("Error: This book is not currently borrowed.\n");
         return;
     }
 
+    // Calculate fine if the book is overdue
+    int fine = calculate_fine(books[index].due_date);
+    if (fine > 0) {
+        printf("You have a fine of $%d for late return.\n", fine);
+        return; // Do not proceed to mark the book as returned
+    }
+
+    // Mark the book as returned
     books[index].is_borrowed = 0;
+    strcpy(books[index].borrower, "N/A");
+    strcpy(books[index].due_date, "N/A");
+
     printf("Book returned successfully!\n");
 }
 
@@ -331,12 +452,7 @@ void to_lowercase(char *str) {
 void login_or_signup() {
     int choice;
     while (1) {
-        printf("\n=========================================\n");
-        printf("         LIBRARY MANAGEMENT SYSTEM       \n");
-        printf("=========================================\n");
-        printf("| 1 | Login                             |\n");
-        printf("| 2 | Sign Up                           |\n");
-        printf("=========================================\n");
+        print_colored_menu();
         printf("Enter your choice: ");
         scanf("%d", &choice);
 
@@ -353,6 +469,18 @@ void login_or_signup() {
 void login() {
     char username[50], password[50];
     int attempts = 0;
+    int role; // 1 for Admin, 2 for User
+
+    printf(YELLOW "Select Role:\n" RESET);
+    printf(GREEN "1. Admin\n" RESET);
+    printf(BLUE "2. User\n" RESET);
+    printf("Enter your choice: ");
+    scanf("%d", &role);
+
+    if (role != 1 && role != 2) {
+        printf(RED "Invalid role selected. Exiting...\n" RESET);
+        exit(1);
+    }
 
     while (1) {
         printf("Enter username: ");
@@ -361,25 +489,24 @@ void login() {
         printf("Enter password: ");
         get_hidden_password(password);
 
-        if (validate_user(username, password)) {
+        if (validate_user(username, password, role)) {
             strcpy(current_user, username);
-            printf("\nLogin successful. Welcome, %s!\n", current_user);
+            printf(GREEN "\nLogin successful. Welcome, %s!\n" RESET, current_user);
 
-            // Assign roles based on username
-            if (strcmp(username, "admin") == 0) {
-                printf("Logged in as Admin.\n");
+            // Redirect to the appropriate menu based on the role
+            if (role == 1) {
+                printf(GREEN "Logged in as Admin.\n" RESET);
                 menu(); // Admin menu
-            } else {
-                printf("Logged in as User.\n");
-                user_menu(); // Redirect users to the user menu
+            } else if (role == 2) {
+                printf(BLUE "Logged in as User.\n" RESET);
+                user_menu(); // User menu
             }
-            break;
         } else {
             attempts++;
-            printf("\nInvalid credentials. Please try again.\n");
+            printf(RED "\nInvalid credentials. Please try again.\n" RESET);
 
             if (attempts >= 3) {
-                printf("Too many failed attempts. Exiting...\n");
+                printf(RED "Too many failed attempts. Exiting...\n" RESET);
                 exit(1);
             }
         }
@@ -389,6 +516,7 @@ void login() {
 // Sign-Up Function
 void signup() {
     char username[50], password[50], email[100];
+    int role; // 1 for Admin, 2 for User
 
     while (1) {
         printf("Enter a new username: ");
@@ -396,7 +524,7 @@ void signup() {
 
         // Check if the username is already taken
         if (validate_username(username)) {
-            printf("Error: Username '%s' is already taken. Please try a different username.\n", username);
+            printf(RED "Error: Username '%s' is already taken. Please try a different username.\n" RESET, username);
         } else {
             break; // Username is available
         }
@@ -408,8 +536,26 @@ void signup() {
     printf("Enter your email (for password recovery): ");
     scanf("%s", email);
 
-    save_user(username, password, email);
-    printf("\nSign-up successful! You can now log in.\n");
+    // Prompt the user to select their role
+    printf(YELLOW "Select Role:\n" RESET);
+    printf(GREEN "1. Admin\n" RESET);
+    printf(BLUE "2. User\n" RESET);
+    printf("Enter your choice: ");
+    scanf("%d", &role);
+
+    if (role != 1 && role != 2) {
+        printf(RED "Invalid role selected. Please try again.\n" RESET);
+        return;
+    }
+
+    // Save the user credentials to the appropriate file
+    if (role == 1) {
+        save_admin(username, password, email);
+    } else {
+        save_user(username, password, email);
+    }
+
+    printf(GREEN "\nSign-up successful! You can now log in.\n" RESET);
     login();
 }
 
@@ -456,14 +602,20 @@ void get_hidden_password(char *password) {
 }
 
 // Validate User Credentials
-int validate_user(const char *username, const char *password) {
-    FILE *file = fopen("users.txt", "r");
+int validate_user(const char *username, const char *password, int role) {
+    FILE *file;
+    if (role == 1) {
+        file = fopen("admins.txt", "r"); // Check in admins.txt for Admins
+    } else {
+        file = fopen("users.txt", "r"); // Check in users.txt for Users
+    }
+
     if (!file) {
         return 0;
     }
 
-    char stored_username[50], stored_password[50];
-    while (fscanf(file, "%s %s", stored_username, stored_password) == 2) {
+    char stored_username[50], stored_password[50], stored_email[100];
+    while (fscanf(file, "%s %s %s", stored_username, stored_password, stored_email) == 3) {
         if (strcmp(username, stored_username) == 0 && strcmp(password, stored_password) == 0) {
             fclose(file);
             return 1; // User found
@@ -479,6 +631,32 @@ void save_user(const char *username, const char *password, const char *email) {
     FILE *file = fopen("users.txt", "a");
     if (!file) {
         perror("Error saving user data");
+        exit(1);
+    }
+
+    fprintf(file, "%s %s %s\n", username, password, email);
+    fclose(file);
+}
+
+// Save New User Credentials with Role
+void save_user_with_role(const char *username, const char *password, const char *email, int role) {
+    FILE *file = fopen("users.txt", "a");
+    if (!file) {
+        perror("Error saving user data");
+        exit(1);
+    }
+
+    // Save the role as "Admin" or "User"
+    const char *role_str = (role == 1) ? "Admin" : "User";
+    fprintf(file, "%s %s %s %s\n", username, password, email, role_str);
+    fclose(file);
+}
+
+// Save Admin Credentials
+void save_admin(const char *username, const char *password, const char *email) {
+    FILE *file = fopen("admins.txt", "a");
+    if (!file) {
+        perror("Error saving admin data");
         exit(1);
     }
 
@@ -534,15 +712,15 @@ void generate_statistics() {
 void user_menu() {
     int choice;
     do {
-        printf("\n=========================================\n");
-        printf("               USER MENU                 \n");
-        printf("=========================================\n");
+        printf(GREEN "\n=========================================\n" RESET);
+        printf(YELLOW "               USER MENU                 \n" RESET);
+        printf(GREEN "=========================================\n" RESET);
         printf("| 1 | View Books                        |\n");
         printf("| 2 | Search Books                      |\n");
         printf("| 3 | Issue Book                        |\n");
         printf("| 4 | Return Book                       |\n");
         printf("| 5 | Exit                              |\n");
-        printf("=========================================\n");
+        printf(GREEN "=========================================\n" RESET);
         printf("Enter your choice: ");
         scanf("%d", &choice);
 
@@ -552,15 +730,93 @@ void user_menu() {
             case 3: issue_book(); break;
             case 4: return_book(); break;
             case 5: save_books(); exit(0);
-            default: printf("Invalid choice. Try again.\n");
+            default: printf(RED "Invalid choice. Try again.\n" RESET);
         }
     } while (1);
 }
 
+// Export Data to File
+void export_data_to_file() {
+    FILE *file = fopen("report.txt", "w");
+    if (!file) {
+        perror("Error creating report file");
+        return;
+    }
+
+    fprintf(file, "ID,Title,Author,Status\n");
+    for (int i = 0; i < book_count; i++) {
+        fprintf(file, "%d,%s,%s,%s\n", books[i].id, books[i].title, books[i].author,
+                books[i].is_borrowed ? "Borrowed" : "Available");
+    }
+
+    fclose(file);
+    printf("Data exported successfully to report.txt\n");
+}
+
+// Backup Data to File
+void backup_data() {
+    FILE *file = fopen("backup.dat", "wb");
+    if (!file) {
+        perror("Error creating backup file");
+        return;
+    }
+
+    fwrite(&book_count, sizeof(int), 1, file);
+    fwrite(books, sizeof(Book), book_count, file);
+    fclose(file);
+    printf("Backup created successfully!\n");
+}
+
+// Restore Data from Backup
+void restore_data() {
+    FILE *file = fopen("backup.dat", "rb");
+    if (!file) {
+        printf("No backup file found.\n");
+        return;
+    }
+
+    fread(&book_count, sizeof(int), 1, file);
+    fread(books, sizeof(Book), book_count, file);
+    fclose(file);
+    printf("Data restored successfully from backup!\n");
+}
+
+// Calculate Fine
+int calculate_fine(const char *due_date) {
+    // Parse the due date (YYYY-MM-DD) manually
+    int year, month, day;
+    if (sscanf(due_date, "%d-%d-%d", &year, &month, &day) != 3) {
+        printf("Error: Invalid due date format.\n");
+        return 0;
+    }
+
+    // Get the current date
+    time_t now = time(NULL);
+    struct tm *current_date = localtime(&now);
+
+    // Calculate the difference in days
+    struct tm due = {0};
+    due.tm_year = year - 1900; // tm_year is years since 1900
+    due.tm_mon = month - 1;    // tm_mon is 0-based
+    due.tm_mday = day;
+
+    time_t due_time = mktime(&due);
+    if (due_time == -1) {
+        printf("Error: Unable to calculate due date.\n");
+        return 0;
+    }
+
+    double difference = difftime(now, due_time) / (60 * 60 * 24); // Difference in days
+
+    if (difference > 0) {
+        return (int)difference * 10; // Fine: $10 per day
+    }
+    return 0; // No fine
+}
+
 // Main Function
 int main() {
-    login_or_signup();
-    load_books();
-    menu();
-    return 0;
+    load_books(); // Load books from books.txt
+    login_or_signup(); // Handle login or sign-up
+    return 0; // Exit after login or sign-up
 }
