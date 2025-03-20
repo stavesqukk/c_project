@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Library Management System
 
 ## Overview
@@ -84,3 +85,6 @@ Contributions are welcome! Please submit a pull request or open an issue for any
 =======
 # C_PROJECT_FINAL
 >>>>>>> e0d97dcf39cc5acefb9e1f6353e89aa1d4eedb99
+=======
+# c_project
+>>>>>>> d8a2dd1de6852f2a0d316950eca5e71e9af4d48c
