@@ -38,6 +38,8 @@ void to_lowercase(char *str);
 void get_hidden_password(char *password);
 int validate_username(const char *username);
 void forgot_password();
+void generate_statistics();
+void user_menu();
 
 // Main Menu
 void menu() {
@@ -82,27 +84,26 @@ void menu() {
 
 // Load Books from File
 void load_books() {
-    FILE *file = fopen("books.txt", "r");
+    FILE *file = fopen("books.dat", "rb");
     if (!file) {
         printf("No previous data found. Starting fresh.\n");
         return;
     }
-    while (fscanf(file, "%d\n%[^\n]\n%[^\n]\n%d\n", &books[book_count].id, books[book_count].title, books[book_count].author, &books[book_count].is_borrowed) == 4) {
-        book_count++;
-    }
+    fread(&book_count, sizeof(int), 1, file); // Read the book count
+    fread(books, sizeof(Book), book_count, file); // Read the book array
     fclose(file);
+    printf("Books loaded successfully!\n");
 }
 
 // Save Books to File
 void save_books() {
-    FILE *file = fopen("books.txt", "w");
+    FILE *file = fopen("books.dat", "wb");
     if (!file) {
         perror("Error saving data");
         return;
     }
-    for (int i = 0; i < book_count; i++) {
-        fprintf(file, "%d\n%s\n%s\n%d\n", books[i].id, books[i].title, books[i].author, books[i].is_borrowed);
-    }
+    fwrite(&book_count, sizeof(int), 1, file); // Write the book count
+    fwrite(books, sizeof(Book), book_count, file); // Write the book array
     fclose(file);
     printf("Data saved successfully!\n");
 }
@@ -208,7 +209,7 @@ void delete_book() {
 
 // Sort Books
 void sort_books() {
-    printf("Sort by:\n1. Title\n2. Author\n3. ID\nEnter choice: ");
+    printf("Sort by:\n1. Title\n2. Author\n3. ID\n4. Status\nEnter choice: ");
     int choice;
     scanf("%d", &choice);
 
@@ -221,6 +222,8 @@ void sort_books() {
                 compare = strcmp(books[i].author, books[j].author);
             } else if (choice == 3) {
                 compare = books[i].id - books[j].id;
+            } else if (choice == 4) {
+                compare = books[i].is_borrowed - books[j].is_borrowed;
             }
             if (compare > 0) {
                 Book temp = books[i];
@@ -361,22 +364,20 @@ void login() {
         if (validate_user(username, password)) {
             strcpy(current_user, username);
             printf("\nLogin successful. Welcome, %s!\n", current_user);
-            break; // Exit the loop on successful login
+
+            // Assign roles based on username
+            if (strcmp(username, "admin") == 0) {
+                printf("Logged in as Admin.\n");
+                menu(); // Admin menu
+            } else {
+                printf("Logged in as User.\n");
+                user_menu(); // Redirect users to the user menu
+            }
+            break;
         } else {
             attempts++;
             printf("\nInvalid credentials. Please try again.\n");
 
-            // Offer "Forgot Password" option after invalid credentials
-            printf("Forgot Password? Enter '1' to recover your password or '2' to try again: ");
-            int choice;
-            scanf("%d", &choice);
-
-            if (choice == 1) {
-                forgot_password();
-                return; // Exit login after password recovery
-            }
-
-            // Optional: Limit the number of attempts
             if (attempts >= 3) {
                 printf("Too many failed attempts. Exiting...\n");
                 exit(1);
@@ -508,6 +509,52 @@ void forgot_password() {
 
     fclose(file);
     printf("No account found with the provided email.\n");
+}
+
+// Generate Statistics
+void generate_statistics() {
+    int total_books = book_count;
+    int issued_books = 0, available_books = 0;
+
+    for (int i = 0; i < book_count; i++) {
+        if (books[i].is_borrowed) {
+            issued_books++;
+        } else {
+            available_books++;
+        }
+    }
+
+    printf("\nStatistics:\n");
+    printf("Total Books: %d\n", total_books);
+    printf("Issued Books: %d\n", issued_books);
+    printf("Available Books: %d\n", available_books);
+}
+
+// User Menu Function
+void user_menu() {
+    int choice;
+    do {
+        printf("\n=========================================\n");
+        printf("               USER MENU                 \n");
+        printf("=========================================\n");
+        printf("| 1 | View Books                        |\n");
+        printf("| 2 | Search Books                      |\n");
+        printf("| 3 | Issue Book                        |\n");
+        printf("| 4 | Return Book                       |\n");
+        printf("| 5 | Exit                              |\n");
+        printf("=========================================\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1: view_books(); break;
+            case 2: search_books(); break;
+            case 3: issue_book(); break;
+            case 4: return_book(); break;
+            case 5: save_books(); exit(0);
+            default: printf("Invalid choice. Try again.\n");
+        }
+    } while (1);
 }
 
 // Main Function
